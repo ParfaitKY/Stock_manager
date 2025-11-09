@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backend (Python / Flask)
+backend/.venv/
+backend/__pycache__/
+backend/migrations/__pycache__/
+**/*.pyc
+# Do not commit secrets
+backend/.env

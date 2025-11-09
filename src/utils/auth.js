@@ -1,39 +1,38 @@
-/**
- * Authentication utilities
- */
+import { api } from './api';
 
-// Hard-coded credentials (as per requirements)
-const VALID_EMAIL = 'test@gmail.com';
-const VALID_PASSWORD = '123';
-const AUTH_TOKEN_KEY = 'stockManagerAuthToken';
+const AUTH_TOKEN_KEY = 'authToken';
+const USER_KEY = 'currentUser';
 
-/**
- * Authenticate user with email and password
- * @param {string} email 
- * @param {string} password 
- * @returns {boolean} Authentication success
- */
-export const authenticate = (email, password) => {
-  if (email === VALID_EMAIL && password === VALID_PASSWORD) {
-    // Create a simple token (in a real app, this would be a JWT or similar)
-    const token = btoa(`${email}:${Date.now()}`);
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
-    return true;
-  }
-  return false;
+export const login = async (email, password) => {
+  const { data } = await api.post('/auth/login', { email, password });
+  localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data.user;
 };
 
-/**
- * Check if user is authenticated
- * @returns {boolean} Authentication status
- */
+export const register = async (email, password) => {
+  const { data } = await api.post('/auth/register', { email, password });
+  localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data.user;
+};
+
 export const isAuthenticated = () => {
   return !!localStorage.getItem(AUTH_TOKEN_KEY);
 };
 
-/**
- * Log out the current user
- */
+export const getCurrentUser = async () => {
+  try {
+    // Toujours valider le token côté serveur
+    const { data } = await api.get('/auth/me');
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    return data.user;
+  } catch (e) {
+    return null;
+  }
+};
+
 export const logout = () => {
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 };

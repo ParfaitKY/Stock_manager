@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { getProducts, getStockMovements, saveStockMovements, updateProductQuantity } from '../utils/storage';
+import { useState, useEffect, useRef } from 'react';
+import { api } from '../utils/api';
 
 function StockMovement() {
   const [movements, setMovements] = useState([]);
   const [products, setProducts] = useState([]);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     productId: '',
     quantity: '',
@@ -12,16 +13,27 @@ function StockMovement() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   
+  const didInit = useRef(false);
+
   useEffect(() => {
+    if (didInit.current) return; // Evite double appel en mode Strict (dev)
+    didInit.current = true;
     loadData();
   }, []);
   
-  const loadData = () => {
-    const loadedProducts = getProducts();
-    const loadedMovements = getStockMovements();
-    
-    setProducts(loadedProducts);
-    setMovements(loadedMovements);
+  const loadData = async () => {
+    try {
+      setError('');
+      const [productsRes, movementsRes] = await Promise.all([
+        api.get('/products'),
+        api.get('/movements')
+      ]);
+      setProducts(productsRes.data.products);
+      setMovements(movementsRes.data.movements);
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Impossible de charger les mouvements/produits.';
+      setError(msg);
+    }
   };
   
   const handleInputChange = (e) => {
@@ -34,41 +46,20 @@ function StockMovement() {
     });
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const selectedProduct = products.find(p => p.id === formData.productId);
+    const selectedProduct = products.find(p => p.id === Number(formData.productId));
     if (!selectedProduct) {
       alert("Veuillez sélectionner un produit.");
       return;
     }
-    
-    if (formData.type === 'sortie' && selectedProduct.quantity < formData.quantity) {
-      alert(`Stock insuffisant. Stock actuel: ${selectedProduct.quantity}`);
-      return;
-    }
-    
-    // Create new movement
-    const newMovement = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      productId: formData.productId,
-      productName: selectedProduct.name,
-      quantity: formData.quantity,
-      type: formData.type,
-      note: formData.note
-    };
-    
-    // Update movements
-    const updatedMovements = [newMovement, ...movements];
-    saveStockMovements(updatedMovements);
-    setMovements(updatedMovements);
-    
-    // Update product quantity
-    const quantityChange = formData.type === 'entrée' ? formData.quantity : -formData.quantity;
-    const success = updateProductQuantity(formData.productId, quantityChange);
-    
-    if (success) {
+    try {
+      await api.post('/movements', {
+        productId: selectedProduct.id,
+        quantity: formData.quantity,
+        type: formData.type,
+        note: formData.note,
+      });
       // Reset form except for the type
       setFormData({
         productId: '',
@@ -76,9 +67,9 @@ function StockMovement() {
         type: formData.type,
         note: ''
       });
-      
-      // Reload products to get updated quantities
-      loadData();
+      await loadData();
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de l\'enregistrement du mouvement');
     }
   };
   
@@ -122,6 +113,9 @@ function StockMovement() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Mouvements de Stock</h1>
+      {error && (
+        <div className="p-3 rounded bg-red-100 text-red-700 border border-red-200">{error}</div>
+      )}
       
       {/* Stock Movement Form */}
       <div className="bg-white rounded-lg shadow-md p-6">

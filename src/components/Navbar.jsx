@@ -1,6 +1,6 @@
 import React from 'react';
 
-function Navbar({ currentPage, setCurrentPage, onLogout }) {
+function Navbar({ currentPage, setCurrentPage, onLogout, isAdmin }) {
   return (
     <nav className="bg-blue-600">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -41,6 +41,18 @@ function Navbar({ currentPage, setCurrentPage, onLogout }) {
                 >
                   Mouvements de Stock
                 </button>
+                {isAdmin && (
+                  <button
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      currentPage === 'admin'
+                        ? 'bg-blue-700 text-white'
+                        : 'text-white hover:bg-blue-500'
+                    }`}
+                    onClick={() => setCurrentPage('admin')}
+                  >
+                    Admin
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -87,6 +99,18 @@ function Navbar({ currentPage, setCurrentPage, onLogout }) {
             >
               Mouvements de Stock
             </button>
+            {isAdmin && (
+              <button
+                className={`block px-3 py-2 rounded-md text-base font-medium w-full text-left ${
+                  currentPage === 'admin'
+                    ? 'bg-blue-700 text-white'
+                    : 'text-white hover:bg-blue-500'
+                }`}
+                onClick={() => setCurrentPage('admin')}
+              >
+                Admin
+              </button>
+            )}
           </div>
         </div>
       </div>

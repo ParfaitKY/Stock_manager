@@ -1,28 +1,39 @@
-import { useState, useEffect } from 'react';
-import { getProducts, getStockMovements } from '../utils/storage';
+import { useState, useEffect, useRef } from 'react';
+import { api } from '../utils/api';
 
 function Dashboard() {
   const [totalProducts, setTotalProducts] = useState(0);
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [recentMovements, setRecentMovements] = useState([]);
+  const [error, setError] = useState('');
+
+  const didInit = useRef(false);
 
   useEffect(() => {
-    // Get data from localStorage
-    const products = getProducts();
-    const movements = getStockMovements();
-    
-    // Count products
-    setTotalProducts(products.length);
-    
-    // Find products below threshold
-    const lowStock = products.filter(product => product.quantity < product.minThreshold);
-    setLowStockProducts(lowStock);
-    
-    // Get recent movements (last 5)
-    const recent = [...movements]
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 5);
-    setRecentMovements(recent);
+    if (didInit.current) return; // Evite double appel en mode Strict (dev)
+    didInit.current = true;
+    const load = async () => {
+      try {
+        setError('');
+        const [productsRes, movementsRes] = await Promise.all([
+          api.get('/products'),
+          api.get('/movements')
+        ]);
+        const products = productsRes.data.products || [];
+        const movements = movementsRes.data.movements || [];
+        setTotalProducts(products.length);
+        const lowStock = products.filter(product => product.quantity < product.minThreshold);
+        setLowStockProducts(lowStock);
+        const recent = [...movements]
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 5);
+        setRecentMovements(recent);
+      } catch (e) {
+        const msg = e?.response?.data?.message || 'Impossible de charger les données du tableau de bord.';
+        setError(msg);
+      }
+    };
+    load();
   }, []);
 
   return (
@@ -31,6 +42,10 @@ function Dashboard() {
         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-1-4H5a2 2 0 00-2 2v16a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z" /></svg>
         Tableau de Bord
       </h1>
+
+      {error && (
+        <div className="p-3 rounded bg-red-100 text-red-700 border border-red-200">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Total Products Card */}
@@ -58,6 +73,26 @@ function Dashboard() {
             Mouvements Récents
           </h2>
           <p className="text-sm text-gray-500 mt-2">Les 5 derniers mouvements</p>
+          <div className="w-full mt-4 space-y-2">
+            {recentMovements.length > 0 ? (
+              recentMovements.map((movement) => (
+                <div key={movement.id} className="w-full flex items-center justify-between bg-white/70 backdrop-blur-sm border border-green-100 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700 font-medium">{movement.productName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${movement.type === 'entrée' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                      {movement.type === 'entrée' ? 'Entrée' : 'Sortie'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">{new Date(movement.date).toLocaleDateString()}</span>
+                    <span className="text-sm font-semibold text-gray-700">x{movement.quantity}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-400 text-center">Aucun mouvement récent</p>
+            )}
+          </div>
         </div>
       </div>
       

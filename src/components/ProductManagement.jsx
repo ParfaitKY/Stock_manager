@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { getProducts, saveProducts } from '../utils/storage';
+import { useState, useEffect, useRef } from 'react';
+import { api } from '../utils/api';
 
 function ProductManagement() {
   const [products, setProducts] = useState([]);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -19,13 +20,24 @@ function ProductManagement() {
     minThreshold: 0,
   });
 
+  const didInit = useRef(false);
+
   useEffect(() => {
+    // Garde contre la double exécution en React StrictMode
+    if (didInit.current) return;
+    didInit.current = true;
     loadProducts();
   }, []);
 
-  const loadProducts = () => {
-    const loadedProducts = getProducts();
-    setProducts(loadedProducts);
+  const loadProducts = async () => {
+    try {
+      setError('');
+      const { data } = await api.get('/products');
+      setProducts(data.products);
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Impossible de charger les produits.';
+      setError(msg);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -53,30 +65,35 @@ function ProductManagement() {
     setEditingId(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (isAddMode) {
-      // Add new product
-      const newProduct = {
-        id: Date.now().toString(),
-        ...formData,
-      };
-      
-      const updatedProducts = [...products, newProduct];
-      saveProducts(updatedProducts);
-      setProducts(updatedProducts);
-    } else {
-      // Update existing product
-      const updatedProducts = products.map(product => 
-        product.id === editingId ? { ...product, ...formData } : product
-      );
-      
-      saveProducts(updatedProducts);
-      setProducts(updatedProducts);
+    try {
+      setError('');
+      if (isAddMode) {
+        await api.post('/products', {
+          name: formData.name,
+          category: formData.category,
+          quantity: formData.quantity,
+          buyPrice: formData.buyPrice,
+          sellPrice: formData.sellPrice,
+          minThreshold: formData.minThreshold,
+        });
+      } else if (editingId) {
+        await api.put(`/products/${editingId}`, {
+          name: formData.name,
+          category: formData.category,
+          quantity: formData.quantity,
+          buyPrice: formData.buyPrice,
+          sellPrice: formData.sellPrice,
+          minThreshold: formData.minThreshold,
+        });
+      }
+      await loadProducts();
+      resetForm();
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Échec de l’enregistrement du produit.';
+      setError(msg);
     }
-    
-    resetForm();
   };
 
   const handleEdit = (product) => {
@@ -92,11 +109,10 @@ function ProductManagement() {
     setEditingId(product.id);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce produit?')) {
-      const updatedProducts = products.filter(product => product.id !== id);
-      saveProducts(updatedProducts);
-      setProducts(updatedProducts);
+      await api.delete(`/products/${id}`);
+      await loadProducts();
     }
   };
 
@@ -176,6 +192,9 @@ function ProductManagement() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Gestion des Produits</h1>
+      {error && (
+        <div className="p-3 rounded bg-red-100 text-red-700 border border-red-200">{error}</div>
+      )}
       
       {/* Product Form */}
       <div className="bg-white rounded-lg shadow-md p-6">
